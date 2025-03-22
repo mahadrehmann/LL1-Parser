@@ -10,6 +10,7 @@ using namespace std;
 
 const string EPSILON = "^";
 unordered_map<string, unordered_set<string>> firstSet;
+unordered_map<string, unordered_set<string>> followSet;
 
 // A rule: LHS and a list of productions.
 struct Rule {
@@ -154,7 +155,7 @@ void removeLeftRecursion(vector<Rule> &grammar) {
 
     int numRules = grammar.size();
 
-    // Substituting productions from earlier nonterminals to remove indirect recursion.
+    // Substituting productions for checking indirect recursion.
     for (int i = 0; i < numRules; i++) {
         for (int j = 0; j < i; j++) {
 
@@ -163,7 +164,7 @@ void removeLeftRecursion(vector<Rule> &grammar) {
 
             for (auto &prod : grammar[i].productions) {
                 
-                // If the production starts with a previously seen nonterminal, replace it.
+                // Replazce if same as previos
                 if (prod.substr(0, previousNT.size()) == previousNT) {
                     string restProduction = prod.substr(previousNT.size());
 
@@ -348,6 +349,113 @@ void printFirstSets() {
     cout << "-----------------------------------------------------\n";
 }
 
+// Computing follow sets for all non terminals
+void computeFollowSets(vector<Rule> &grammar) {
+
+    for (const auto &rule : grammar) {
+        followSet[rule.lhs] = {};
+    }
+    if (!grammar.empty())
+        followSet[grammar[0].lhs].insert("$");
+
+
+    bool changed;
+    do {
+        changed = false;
+
+        for (const auto &rule : grammar) {
+            string A = rule.lhs;
+          
+            for (const string &prod : rule.productions) {
+
+                vector<string> symbols;
+                size_t pos = 0;
+                while (pos < prod.size()) {
+                    string token;
+
+                    if (isupper(prod[pos])) {
+                        token.push_back(prod[pos++]);
+                        if (pos < prod.size() && prod[pos] == '\'') {
+                            token.push_back(prod[pos++]);
+                        }
+                        symbols.push_back(token);
+                    }
+                    else if (islower(prod[pos])) {
+                        while (pos < prod.size() && islower(prod[pos])) {
+                            token.push_back(prod[pos++]);
+                        }
+                        symbols.push_back(token);
+                    }
+                    else {
+                        symbols.push_back(string(1, prod[pos++]));
+                    }
+                }
+                
+                // Any non-terminal, upadate its followset
+                for (size_t i = 0; i < symbols.size(); i++) {
+                    if (isupper(symbols[i][0])) {
+                        size_t beforeSize = followSet[symbols[i]].size();
+                        
+                        // first nikalne ki logic
+                        unordered_set<string> firstBeta;
+                        bool allEpsilon = true;
+                        for (size_t j = i + 1; j < symbols.size(); j++) {
+                            string token = symbols[j];
+                            if (!isupper(token[0])) {
+                                firstBeta.insert(token);
+                                allEpsilon = false;
+                                break;
+                            }
+                            else {
+                                for (const string &sym : firstSet[token]) {
+                                    if (sym != EPSILON)
+                                        firstBeta.insert(sym);
+                                }
+                                if (firstSet[token].find(EPSILON) == firstSet[token].end()) { //.end() means end tak check karo
+                                    allEpsilon = false;
+                                    break;
+                                }
+                            }
+                        }
+                        
+                        //If no epsilon, best scenes
+                        for (const string &sym : firstBeta) {
+                            if (sym != EPSILON)
+                                followSet[symbols[i]].insert(sym);
+                        }
+                        
+                        //If no beta, or it has epsilon, then we add follow of A to it
+                        if ((i == symbols.size() - 1) || allEpsilon) {
+                            for (const string &sym : followSet[A]) {
+                                followSet[symbols[i]].insert(sym);
+                            }
+                        }
+                        if (followSet[symbols[i]].size() != beforeSize)
+                            changed = true;
+                    }
+                }
+            }
+        }
+    } while (changed);
+}
+
+
+// Print FOLLOW sets.
+void printFollowSets() {
+    cout << "-----------------------------------------------------\n";
+    for (const auto &entry : followSet) {
+        cout << "Follow(" << entry.first << ") = { ";
+        bool first = true;
+        for (const string &sym : entry.second) {
+            if (!first) cout << ", ";
+            cout << sym;
+            first = false;
+        }
+        cout << " }" << endl;
+    }
+    cout << "-----------------------------------------------------\n";
+}
+
 // Main function.
 int main() {
     string fileName = "input.txt";
@@ -371,6 +479,11 @@ int main() {
     cout << "\nFirst sets of all terminals:\n";
     computeFirstSets(grammar);
     printFirstSets();
+
+    // Step 5: FOLLOW Sets
+    cout << "\nFollow sets of all terminals:\n";
+    computeFollowSets(grammar);
+    printFollowSets();    
 
     return 0;
 }
