@@ -11,7 +11,7 @@ As part of our Compiler Construction Assignment 2, we implemented an LL(1) parse
 
 ## Files
 
-- **main.cpp** - Main implementation of the LL(1) parser.
+- **LL1-Parsing.cpp** - Main implementation of the LL(1) parser.
 - **input.txt** - Contains the CFG in the format: `NonTerminal -> production1 | production2 | ...`.
 - **result.txt** - Stores the processing results (grammar transformations, FIRST & FOLLOW sets, parsing table).
 
