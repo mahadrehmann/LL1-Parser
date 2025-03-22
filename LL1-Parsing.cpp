@@ -77,18 +77,18 @@ void readGrammar(const string &filename, vector<Rule> &grammar) {
 }
 
 // Print the current grammar.
-void printGrammar(const vector<Rule> &grammar) {
-    cout << "-----------------------------------------------------\n";
+void printGrammar(const vector<Rule> &grammar, ostream &print) {
+    print << "-----------------------------------------------------\n";
     for (const auto &rule : grammar) {
-        cout << rule.lhs << " -> ";
+        print << rule.lhs << " -> ";
         for (size_t i = 0; i < rule.productions.size(); i++) {
-            cout << rule.productions[i];
+            print << rule.productions[i];
             if(i != rule.productions.size() - 1)
-                cout << " | ";
+                print << " | ";
         }
-        cout << endl;
+        print << endl;
     }
-    cout << "-----------------------------------------------------\n";
+    print << "-----------------------------------------------------\n";
 }
 
 // Removing left factoring
@@ -342,19 +342,19 @@ void computeFirstSets(vector<Rule> &grammar) {
 }
 
 // Print First Sets
-void printFirstSets() {
-    cout << "-----------------------------------------------------\n";
+void printFirstSets(ostream &print) {
+    print << "-----------------------------------------------------\n";
     for (const auto &entry : firstSet) {
-        cout << "First(" << entry.first << ") = { ";
+        print << "First(" << entry.first << ") = { ";
         bool first = true;
         for (const string &sym : entry.second) {
-            if (!first) cout << ", ";
-            cout << sym;
+            if (!first) print << ", ";
+            print << sym;
             first = false;
         }
-        cout << " }" << endl;
+        print << " }" << endl;
     }
-    cout << "-----------------------------------------------------\n";
+    print << "-----------------------------------------------------\n";
 }
 
 // Computing follow sets for all non terminals
@@ -448,19 +448,19 @@ void computeFollowSets(vector<Rule> &grammar) {
 }
 
 // Print FOLLOW sets.
-void printFollowSets() {
-    cout << "-----------------------------------------------------\n";
+void printFollowSets(ostream &print) {
+    print << "-----------------------------------------------------\n";
     for (const auto &entry : followSet) {
-        cout << "Follow(" << entry.first << ") = { ";
+        print << "Follow(" << entry.first << ") = { ";
         bool first = true;
         for (const string &sym : entry.second) {
-            if (!first) cout << ", ";
-            cout << sym;
+            if (!first) print << ", ";
+            print << sym;
             first = false;
         }
-        cout << " }" << endl;
+        print << " }" << endl;
     }
-    cout << "-----------------------------------------------------\n";
+    print << "-----------------------------------------------------\n";
 }
 
 // Function to construct LL(1) parsing table
@@ -531,7 +531,7 @@ unordered_map<string, unordered_map<string, vector<string>>> constructLL1Parsing
 }
 
 // Function to print the parsing table
-void printParsingTable(const unordered_map<string, unordered_map<string, vector<string>>>& parsingTable) {
+void printParsingTable(const unordered_map<string, unordered_map<string, vector<string>>>& parsingTable, ostream &print) {
     unordered_set<string> terminals;
 
     for (const auto& row : parsingTable) {
@@ -543,61 +543,78 @@ void printParsingTable(const unordered_map<string, unordered_map<string, vector<
     vector<string> terminalList(terminals.begin(), terminals.end());
     sort(terminalList.begin(), terminalList.end());
 
-    cout << setw(15) << left << "Non-Terminal";
+    print << setw(15) << left << "Non-Terminal";
     for (const string& terminal : terminalList) {
-        cout << setw(15) << left << terminal;
+        print << setw(15) << left << terminal;
     }
-    cout << "\n" << string(15 + 15 * terminalList.size(), '-') << "\n";
+    print << "\n" << string(15 + 15 * terminalList.size(), '-') << "\n";
 
     for (const auto& row : parsingTable) {
         const string& nonTerminal = row.first;
-        cout << setw(15) << left << nonTerminal;
+        print << setw(15) << left << nonTerminal;
 
         for (const string& terminal : terminalList) {
             if (row.second.find(terminal) != row.second.end()) {
                 const vector<string>& production = row.second.at(terminal);
-                cout << setw(15) << left << (nonTerminal + " -> " + production[0]);
+                print << setw(15) << left << (nonTerminal + " -> " + production[0]);
             } else {
-                cout << setw(15) << left << "-";
+                print << setw(15) << left << "-";
             }
         }
-        cout << "\n";
+        print << "\n";
     }
 }
 
 // Main function.
 int main() {
     string fileName = "input.txt";
+    ofstream fileOutput("result.txt");
+
     vector<Rule> grammar;
     unordered_map<string, unordered_map<string, vector<string>>> parsingTable;
 
     readGrammar(fileName, grammar);
     cout << "Original Grammar:\n";
-    printGrammar(grammar);
+    fileOutput << "Original Grammar:\n";
+    printGrammar(grammar,cout);
+    printGrammar(grammar,fileOutput);
 
     // Step 2: Left Factoring
     leftFactoring(grammar);
     cout << "\nGrammar after Left Factoring:\n";
-    printGrammar(grammar);
+    fileOutput << "\nGrammar after Left Factoring:\n";
+    printGrammar(grammar,cout);
+    printGrammar(grammar,fileOutput);
 
     // Step 3: Left Recursion Removal
     removeLeftRecursion(grammar);
     cout << "\nGrammar after Left Recursion Removal:\n";
-    printGrammar(grammar);
+    fileOutput << "\nGrammar after Left Recursion Removal:\n";
+    printGrammar(grammar,cout);
+    printGrammar(grammar,fileOutput);
 
     // Step 4: First Sets
     cout << "\nFirst sets of all terminals:\n";
+    fileOutput << "\nFirst sets of all terminals:\n";
     computeFirstSets(grammar);
-    printFirstSets();
+    printFirstSets(cout);
+    printFirstSets(fileOutput);
 
     // Step 5: FOLLOW Sets
     cout << "\nFollow sets of all terminals:\n";
+    fileOutput << "\nFollow sets of all terminals:\n";
     computeFollowSets(grammar);
-    printFollowSets();
+    printFollowSets(cout);
+    printFollowSets(fileOutput);
     
     // Step 6: LL(1) Parsing Table
+    cout << "\nParsing table:\n";
+    fileOutput << "\nParsing table:\n";
     parsingTable = constructLL1ParsingTable(grammar, firstSet, followSet);
-    printParsingTable(parsingTable);
+    printParsingTable(parsingTable, cout);
+    printParsingTable(parsingTable, fileOutput);
+
+    fileOutput.close();
 
     return 0;
 }
