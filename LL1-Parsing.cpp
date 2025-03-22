@@ -5,12 +5,16 @@
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
+#include <iomanip>
+#include <algorithm>
 
 using namespace std;
 
 const string EPSILON = "^";
 unordered_map<string, unordered_set<string>> firstSet;
 unordered_map<string, unordered_set<string>> followSet;
+
+void printFirstSets();
 
 // A rule: LHS and a list of productions.
 struct Rule {
@@ -247,7 +251,9 @@ void computeFirstSets(vector<Rule> &grammar) {
             for (const string &prod : rule.productions) {
                 size_t oldSize = firstSet[nt].size();
                 vector<string> symbols;
+                string recordNonTerminals;
                 size_t pos = 0;
+                bool check = false;
 
                 while (pos < prod.size()) {
                     string token;
@@ -255,15 +261,29 @@ void computeFirstSets(vector<Rule> &grammar) {
                         while (pos < prod.size() && islower(prod[pos])) {
                             token += prod[pos++];
                         }
+
                         symbols.push_back(token);
                         break;
                     }
 
-                    if (isalpha(prod[pos])) {
-                        while (pos < prod.size() && isalpha(prod[pos])) {
+                    int i = pos;
+
+                    while (i < prod.size() && isupper(prod[i])) {
+                        recordNonTerminals += prod[i++];
+                    }
+
+                    //cout << "Recorded non terminals: " << recordNonTerminals << endl;
+
+                    if (isupper(prod[pos])) {
+                        token = prod.substr(pos, 1);
+                        pos++;
+                        symbols.push_back(token);
+                    } else if (islower(prod[pos])) {
+                        while (pos < prod.size() && islower(prod[pos])) {
                             token += prod[pos++];
                         }
                         symbols.push_back(token);
+                        break;
                     } else {
                         symbols.push_back(string(1, prod[pos++]));
                     }
@@ -272,11 +292,14 @@ void computeFirstSets(vector<Rule> &grammar) {
                 bool allEpsilon = true;
 
                 for (const string &symbol : symbols) {
+                    // This is for lowercase letters
                     if (!isupper(symbol[0])) {
                         firstSet[nt].insert(symbol);
                         allEpsilon = false;
                         break;
-                    } else {
+                    }
+                    // Non terminals 
+                    else {
                         if (firstSet.find(symbol) != firstSet.end()) {
                             for (const string &ch : firstSet[symbol]) {
                                 if (ch != EPSILON)
@@ -286,7 +309,23 @@ void computeFirstSets(vector<Rule> &grammar) {
                                 allEpsilon = false;
                                 break;
                             }
-                        } else {
+                            // else {
+                            //     for (int i = 1; i < recordNonTerminals.size(); ++i) {
+                            //         if (recordNonTerminals[i]) {
+                            //             if (firstSet[recordNonTerminals[i]].find(EPSILON) == firstSet[recordNonTerminals[i]].end()) {
+                            //                 firstSet[nt].insert(ch);
+                            //             }
+                            //             else {
+                                            
+                            //             }
+                            //         }
+                            //         else {
+                            //             break;
+                            //         }
+                            //     }
+                            // }
+                        }
+                        else {
                             firstSet[nt].insert(symbol);
                         }
                     }
@@ -300,37 +339,6 @@ void computeFirstSets(vector<Rule> &grammar) {
             }
         }
     } while (changed);
-
-    bool updated;
-    do {
-        updated = false;
-
-        for (auto &entry : firstSet) {
-            unordered_set<string> newFirstSet = entry.second;
-            size_t oldSize = newFirstSet.size();
-
-            vector<string> toReplace;
-            for (const string &s : entry.second) {
-                if (isupper(s[0]) && firstSet.find(s) != firstSet.end()) {
-                    toReplace.push_back(s);
-                }
-            }
-
-            for (const string &nt : toReplace) {
-                newFirstSet.erase(nt);
-                for (const string &ch : firstSet[nt]) {
-                    if (ch != EPSILON) {
-                        newFirstSet.insert(ch);
-                    }
-                }
-            }
-
-            if (newFirstSet.size() != entry.second.size()) {
-                firstSet[entry.first] = newFirstSet;
-                updated = true;
-            }
-        }
-    } while (updated);
 }
 
 // Print First Sets
@@ -439,7 +447,6 @@ void computeFollowSets(vector<Rule> &grammar) {
     } while (changed);
 }
 
-
 // Print FOLLOW sets.
 void printFollowSets() {
     cout << "-----------------------------------------------------\n";
@@ -456,10 +463,113 @@ void printFollowSets() {
     cout << "-----------------------------------------------------\n";
 }
 
+// Function to construct LL(1) parsing table
+unordered_map<string, unordered_map<string, vector<string>>> constructLL1ParsingTable(
+    const vector<Rule>& grammar, 
+    const unordered_map<string, unordered_set<string>>& firstSet, 
+    const unordered_map<string, unordered_set<string>>& followSet) {
+    
+    unordered_map<string, unordered_map<string, vector<string>>> parsingTable;
+
+    for (const auto &rule : grammar) {
+        string nt = rule.lhs;
+
+        for (const string &prod : rule.productions) {
+            unordered_set<string> firstOfProd;
+            bool containsEpsilon = false;
+
+            size_t pos = 0;
+            while (pos < prod.size()) {
+                string symbol;
+                
+                if (islower(prod[pos])) {
+                    while (pos < prod.size() && islower(prod[pos])) {
+                        symbol += prod[pos++];
+                    }
+                } else {
+                    symbol = string(1, prod[pos++]);
+                }
+
+                if (!isupper(symbol[0])) {  
+                    firstOfProd.insert(symbol);
+                    break;
+                } else {
+                    if (firstSet.count(symbol)) {
+                        for (const string &ch : firstSet.at(symbol)) {
+                            if (ch != EPSILON)
+                                firstOfProd.insert(ch);
+                        }
+                        if (firstSet.at(symbol).find(EPSILON) == firstSet.at(symbol).end()) {
+                            break;
+                        } else {
+                            containsEpsilon = true;
+                        }
+                    }
+                }
+            }
+
+            if (containsEpsilon) {
+                firstOfProd.insert(EPSILON);
+            }
+
+            for (const string& terminal : firstOfProd) {
+                if (terminal != EPSILON) {
+                    parsingTable[nt][terminal] = {prod};
+                }
+            }
+
+            if (firstOfProd.find(EPSILON) != firstOfProd.end()) {
+                const unordered_set<string>& followOfNT = followSet.at(nt);
+                for (const string& terminal : followOfNT) {
+                    parsingTable[nt][terminal] = {EPSILON};
+                }
+            }
+        }
+    }
+    
+    return parsingTable;
+}
+
+// Function to print the parsing table
+void printParsingTable(const unordered_map<string, unordered_map<string, vector<string>>>& parsingTable) {
+    unordered_set<string> terminals;
+
+    for (const auto& row : parsingTable) {
+        for (const auto& entry : row.second) {
+            terminals.insert(entry.first);
+        }
+    }
+
+    vector<string> terminalList(terminals.begin(), terminals.end());
+    sort(terminalList.begin(), terminalList.end());
+
+    cout << setw(15) << left << "Non-Terminal";
+    for (const string& terminal : terminalList) {
+        cout << setw(15) << left << terminal;
+    }
+    cout << "\n" << string(15 + 15 * terminalList.size(), '-') << "\n";
+
+    for (const auto& row : parsingTable) {
+        const string& nonTerminal = row.first;
+        cout << setw(15) << left << nonTerminal;
+
+        for (const string& terminal : terminalList) {
+            if (row.second.find(terminal) != row.second.end()) {
+                const vector<string>& production = row.second.at(terminal);
+                cout << setw(15) << left << (nonTerminal + " -> " + production[0]);
+            } else {
+                cout << setw(15) << left << "-";
+            }
+        }
+        cout << "\n";
+    }
+}
+
 // Main function.
 int main() {
     string fileName = "input.txt";
     vector<Rule> grammar;
+    unordered_map<string, unordered_map<string, vector<string>>> parsingTable;
 
     readGrammar(fileName, grammar);
     cout << "Original Grammar:\n";
@@ -483,7 +593,11 @@ int main() {
     // Step 5: FOLLOW Sets
     cout << "\nFollow sets of all terminals:\n";
     computeFollowSets(grammar);
-    printFollowSets();    
+    printFollowSets();
+    
+    // Step 6: LL(1) Parsing Table
+    parsingTable = constructLL1ParsingTable(grammar, firstSet, followSet);
+    printParsingTable(parsingTable);
 
     return 0;
 }
