@@ -78,7 +78,6 @@ void readGrammar(const string &filename, vector<Rule> &grammar) {
 
 // Print the current grammar.
 void printGrammar(const vector<Rule> &grammar, ostream &print) {
-    print << "-----------------------------------------------------\n";
     for (const auto &rule : grammar) {
         print << rule.lhs << " -> ";
         for (size_t i = 0; i < rule.productions.size(); i++) {
@@ -343,7 +342,6 @@ void computeFirstSets(vector<Rule> &grammar) {
 
 // Print First Sets
 void printFirstSets(ostream &print) {
-    print << "-----------------------------------------------------\n";
     for (const auto &entry : firstSet) {
         print << "First(" << entry.first << ") = { ";
         bool first = true;
@@ -449,7 +447,6 @@ void computeFollowSets(vector<Rule> &grammar) {
 
 // Print FOLLOW sets.
 void printFollowSets(ostream &print) {
-    print << "-----------------------------------------------------\n";
     for (const auto &entry : followSet) {
         print << "Follow(" << entry.first << ") = { ";
         bool first = true;
