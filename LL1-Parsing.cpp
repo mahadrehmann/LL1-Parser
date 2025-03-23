@@ -356,14 +356,13 @@ void printFirstSets(ostream &print) {
 }
 
 // Computing follow sets for all non terminals
-void computeFollowSets(vector<Rule> &grammar) {
+void computeFollowSets(vector<Rule> &grammar, const string &startSymbol) {
 
     for (const auto &rule : grammar) {
         followSet[rule.lhs] = {};
     }
     if (!grammar.empty())
-        followSet[grammar[0].lhs].insert("$");
-
+        followSet[startSymbol].insert("$");
 
     bool changed;
     do {
@@ -381,7 +380,7 @@ void computeFollowSets(vector<Rule> &grammar) {
 
                     if (isupper(prod[pos])) {
                         token.push_back(prod[pos++]);
-                        if (pos < prod.size() && prod[pos] == '\'') {
+                        while (pos < prod.size() && (isdigit(prod[pos]) || prod[pos] == '\'')) {
                             token.push_back(prod[pos++]);
                         }
                         symbols.push_back(token);
@@ -571,10 +570,13 @@ int main() {
     unordered_map<string, unordered_map<string, vector<string>>> parsingTable;
 
     readGrammar(fileName, grammar);
-    cout << "Original Grammar:\n";
+    cout << "\nOriginal Grammar:\n";
     fileOutput << "Original Grammar:\n";
     printGrammar(grammar,cout);
     printGrammar(grammar,fileOutput);
+
+    string originalStartSymbol = grammar[0].lhs;
+    // cout<<"-------------\nStart state is: "<<originalStartSymbol<<"\n---------------\n";
 
     // Step 2: Left Factoring
     leftFactoring(grammar);
@@ -600,7 +602,7 @@ int main() {
     // Step 5: FOLLOW Sets
     cout << "\nFollow sets of all terminals:\n";
     fileOutput << "\nFollow sets of all terminals:\n";
-    computeFollowSets(grammar);
+    computeFollowSets(grammar, originalStartSymbol);
     printFollowSets(cout);
     printFollowSets(fileOutput);
     
