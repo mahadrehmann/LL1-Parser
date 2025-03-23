@@ -1,0 +1,44 @@
+Original Grammar:
+E -> E+T | T
+T -> T*F | F
+F -> (E) | id
+-----------------------------------------------------
+
+Grammar after Left Factoring:
+E -> E+T | T
+T -> T*F | F
+F -> (E) | id
+-----------------------------------------------------
+
+Grammar after Left Recursion Removal:
+E -> TE'
+T -> FT'
+F -> (E) | id
+E' -> +TE' | ^
+T' -> *FT' | ^
+-----------------------------------------------------
+
+First sets of all terminals:
+First(T') = { ^, * }
+First(E) = { id, ( }
+First(T) = { (, id }
+First(F) = { id, ( }
+First(E') = { ^, + }
+-----------------------------------------------------
+
+Follow sets of all terminals:
+Follow(T') = { +, ), $ }
+Follow(E) = { ), $ }
+Follow(T) = { ), $, + }
+Follow(F) = { +, ), $, * }
+Follow(E') = { ), $ }
+-----------------------------------------------------
+
+Parsing table:
+Non-Terminal   $              (              )              *              +              id             
+---------------------------------------------------------------------------------------------------------
+T'             T' -> ^        -              T' -> ^        T' -> *FT'     T' -> ^        -              
+E              -              E -> TE'       -              -              -              E -> TE'       
+T              -              T -> FT'       -              -              -              T -> FT'       
+F              -              F -> (E)       -              -              -              F -> id        
+E'             E' -> ^        -              E' -> ^        -              E' -> +TE'     -              
