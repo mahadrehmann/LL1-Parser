@@ -3,16 +3,22 @@
 #include <sstream>
 #include <vector>
 #include <string>
+#include <stack>
 #include <unordered_map>
 #include <unordered_set>
 #include <iomanip>
 #include <algorithm>
+#include <cctype> 
 
 using namespace std;
 
 const string EPSILON = "^";
+
+// Global FIRST/FOLLOW and parsing table
 unordered_map<string, unordered_set<string>> firstSet;
 unordered_map<string, unordered_set<string>> followSet;
+unordered_map<string, unordered_map<string, vector<string>>> parsingTable;
+
 
 void printFirstSets();
 
@@ -165,6 +171,7 @@ void removeLeftRecursion(vector<Rule> &grammar) {
             string previousNT = grammar[j].lhs;
             vector<string> newProduction;  
 
+            // For indirect, replace value here
             for (auto &prod : grammar[i].productions) {
                 
                 // Replazce if same as previos
@@ -182,8 +189,8 @@ void removeLeftRecursion(vector<Rule> &grammar) {
         }
 
         // Split productions into recursive and non-recursive parts.
-        vector<string> recursivePart;       // recursive parts
-        vector<string> nonRecursivePart;   // non-recursive parts
+        vector<string> recursivePart;       // recursive parts yaani A→Aα     
+        vector<string> nonRecursivePart;   // non-recursive parts β’s
 
         for (auto &prod : grammar[i].productions) {
 
@@ -201,14 +208,14 @@ void removeLeftRecursion(vector<Rule> &grammar) {
         // If we found any recursion, transform the rule.
         if (!recursivePart.empty()) {
 
-            string newNonTerminal = grammar[i].lhs + "'";
+            string newNonTerminal = grammar[i].lhs + "'"; //new non-terminal A'
             vector<string> updatedProduction;
 
             for (auto &betas : nonRecursivePart) {
                 if (betas == EPSILON)
-                    updatedProduction.push_back(newNonTerminal);
+                    updatedProduction.push_back(newNonTerminal); 
                 else
-                    updatedProduction.push_back(betas + newNonTerminal);
+                    updatedProduction.push_back(betas + newNonTerminal); //A → β A'
             }
 
             grammar[i].productions = updatedProduction;
@@ -220,7 +227,7 @@ void removeLeftRecursion(vector<Rule> &grammar) {
                 if (alphas == EPSILON)
                     newRule.productions.push_back(newNonTerminal);
                 else
-                    newRule.productions.push_back(alphas + newNonTerminal);
+                    newRule.productions.push_back(alphas + newNonTerminal); // A' → α A' | ε
             }
 
             newRule.productions.push_back(EPSILON);
@@ -368,16 +375,18 @@ void computeFollowSets(vector<Rule> &grammar, const string &startSymbol) {
     do {
         changed = false;
 
+        //for form A → α B β
         for (const auto &rule : grammar) {
             string A = rule.lhs;
           
             for (const string &prod : rule.productions) {
 
-                vector<string> symbols;
+                vector<string> symbols; // For tokenizing like ["T","E'"]
                 size_t pos = 0;
                 while (pos < prod.size()) {
                     string token;
-
+                    
+                    //Non-terminal: uppercase
                     if (isupper(prod[pos])) {
                         token.push_back(prod[pos++]);
                         while (pos < prod.size() && (isdigit(prod[pos]) || prod[pos] == '\'')) {
@@ -385,6 +394,7 @@ void computeFollowSets(vector<Rule> &grammar, const string &startSymbol) {
                         }
                         symbols.push_back(token);
                     }
+                    // Terminal: lowercase
                     else if (islower(prod[pos])) {
                         while (pos < prod.size() && islower(prod[pos])) {
                             token.push_back(prod[pos++]);
@@ -401,7 +411,7 @@ void computeFollowSets(vector<Rule> &grammar, const string &startSymbol) {
                     if (isupper(symbols[i][0])) {
                         size_t beforeSize = followSet[symbols[i]].size();
                         
-                        // first nikalne ki logic
+                        // first nikalne ki logic i.e  FIRST(β)
                         unordered_set<string> firstBeta;
                         bool allEpsilon = true;
                         for (size_t j = i + 1; j < symbols.size(); j++) {
@@ -525,7 +535,7 @@ unordered_map<string, unordered_map<string, vector<string>>> constructLL1Parsing
     
     return parsingTable;
 }
-
+ 
 // Function to print the parsing table
 void printParsingTable(const unordered_map<string, unordered_map<string, vector<string>>>& parsingTable, ostream &print) {
     unordered_set<string> terminals;
@@ -561,52 +571,249 @@ void printParsingTable(const unordered_map<string, unordered_map<string, vector<
     }
 }
 
-// Main function.
+
+
+//------------------------------- Assignment 3 Logics -------------------------------------------//
+
+
+// Split a space‑separated line into tokens like ["x","=","5","+",";"]
+vector<string> splitTokens(const string &line) {
+    vector<string> tokens;
+    string current;
+    size_t pos = 0;
+    while (pos < line.size()) {
+        if (isspace(line[pos])) {
+            pos++;
+            continue;
+        }
+        // Multi-character terminals (int, if)
+        if (pos + 2 < line.size() && line.substr(pos, 3) == "int") {
+            tokens.push_back("int");
+            pos += 3;
+        } else if (pos + 1 < line.size() && line.substr(pos, 2) == "if") {
+            tokens.push_back("if");
+            pos += 2;
+        }
+        // Variable (x)
+        else if (isalpha(line[pos])) {
+            current = line[pos++];
+            while (pos < line.size() && isalpha(line[pos])) {
+                current += line[pos++];
+            }
+            tokens.push_back(current);
+            current.clear();
+        }
+        // Number (0, 1, 5)
+        else if (isdigit(line[pos])) {
+            current = line[pos++];
+            tokens.push_back(current);
+            current.clear();
+        }
+        // Single-character terminals (;, =, +, -, >, (, ), {, })
+        else {
+            tokens.push_back(string(1, line[pos]));
+            pos++;
+        }
+    }
+    return tokens;
+}
+
+// Print stack contents (bottom -> top)
+void printStack(stack<string> st, ostream &out) {
+    vector<string> elems;
+    while (!st.empty()) {
+        elems.push_back(st.top());
+        st.pop();
+    }
+    for (auto it = elems.rbegin(); it != elems.rend(); ++it)
+        out << *it << " ";
+}
+
+// Breaking a production like "TE'" or "(E)" into ["T","E'"], or ["(","E",")"]
+vector<string> tokenizeProduction(const string &prod) {
+    vector<string> tokens;
+    size_t pos = 0;
+    while (pos < prod.size()) {
+        if (isspace(prod[pos])) { pos++; continue; }
+        // Non‐terminal: uppercase + digits/apostrophe
+        if (isupper(prod[pos])) {
+            string nt; nt += prod[pos++];
+            while (pos < prod.size() && (isdigit(prod[pos]) || prod[pos]=='\'')) {
+                nt += prod[pos++];
+            }
+            tokens.push_back(nt);
+        }
+        // Terminal: lowercase sequence (e.g. "id")
+        else if (islower(prod[pos])) {
+            string t;
+            while (pos < prod.size() && islower(prod[pos])) {
+                t += prod[pos++];
+            }
+            tokens.push_back(t);
+        }
+        // Single‐char symbol: + * ( ) etc
+        else {
+            tokens.push_back(string(1, prod[pos++]));
+        }
+    }
+    return tokens;
+}
+
+// Parse one line of input tokens
+void parseLine(const vector<string> &inputTokens, const unordered_set<string> &nonTerms, const string &startSymbol, ostream &outConsole, ostream &outFile)
+{
+    static int lineNo = 1;
+    outConsole << "\n--- Parsing line " << lineNo << " ---\n";
+    outFile    << "\n--- Parsing line " << lineNo << " ---\n";
+    ++lineNo;
+
+    // Initialize stack with [$, startSymbol]
+    stack<string> st;
+    st.push("$");
+    st.push(startSymbol);
+
+    // Prepare input with end‑marker
+    vector<string> input = inputTokens;
+    input.push_back("$");
+    size_t ip = 0;
+    int errors = 0;
+
+    // Main parsing loop
+    while (!st.empty()) {
+        string top = st.top();
+        string curr = input[ip];
+
+        // Print step
+        outConsole << "Stack: ";  printStack(st, outConsole);
+        outConsole << "\tInput: ";
+        for (size_t k = ip; k < input.size(); ++k) outConsole << input[k] << " ";
+        outConsole << "\nAction: ";
+
+        outFile    << "Stack: ";  printStack(st, outFile);
+        outFile    << "\tInput: ";
+        for (size_t k = ip; k < input.size(); ++k) outFile << input[k] << " ";
+        outFile    << "\nAction: ";
+
+        // 1) Accept when both are "$"
+        if (top == "$" && curr == "$") {
+            outConsole << "Accept.\n";
+            outFile    << "Accept.\n";
+            st.pop();
+            break;
+        }
+
+        // 2) If top is terminal (or "$")
+        if (!nonTerms.count(top)) {
+            if (top == curr) {
+                outConsole << "Match '" << top << "'.\n";
+                outFile << "Match '" << top << "'.\n";
+                st.pop();
+                ip++;
+            } else {
+                outConsole << "Error: expected '" << top << "', found '" << curr
+                           << "'. Skipping input.\n";
+                outFile << "Error: expected '" << top << "', found '" << curr
+                           << "'. Skipping input.\n";
+                errors++;
+                if (ip < input.size() - 1) { // Only skip if not at $
+                    ip++;
+                } else {
+                    break; // Stop parsing
+                }
+            }
+        }
+        // 3) Top is non‑terminal -> lookup table
+        else {
+            auto row = parsingTable.find(top);
+            bool found = row != parsingTable.end() && row->second.count(curr);
+            if (found) {
+                // before: const vector<string> &prod = row->second.at(curr);
+                // after:
+                const vector<string> &rawProd = row->second.at(curr);
+                // rawProd should be size 1, holding the whole RHS string
+                vector<string> symbols = (rawProd.size()==1)
+                    ? tokenizeProduction(rawProd[0])
+                    : rawProd;
+
+                // now push symbols in reverse order
+                st.pop();
+                if (symbols.size()==1 && symbols[0]==EPSILON) {
+                    // epsilon‐production
+                    outConsole << top << " -> ε\n";
+                    outFile    << top << " -> ε\n";
+                } 
+                else {
+                    outConsole << top << " -> ";
+                    outFile    << top << " -> ";
+                    for (auto &s : symbols) outConsole << s << " ";
+                    for (auto &s : symbols) outFile    << s << " ";
+                    outConsole << "\n";
+                    outFile    << "\n";
+                    for (auto it = symbols.rbegin(); it != symbols.rend(); ++it) {
+                        st.push(*it);
+                    }
+                }
+
+            } else {
+                outConsole << "Error: no rule for [" << top << ", " << curr
+                           << "]. Pop '" << top << "'.\n";
+                outFile    << "Error: no rule for [" << top << ", " << curr
+                           << "]. Pop '" << top << "'.\n";
+                errors++;
+                st.pop();
+            }
+        }
+    }
+
+    // Final status
+    if (errors==0) {
+        outConsole << "Line parsed successfully.\n";
+        outFile    << "Line parsed successfully.\n";
+    } else {
+        outConsole << "Parsing completed with " << errors << " error(s).\n";
+        outFile    << "Parsing completed with " << errors << " error(s).\n";
+    }
+}
+
+// ------------------------------------------------------------------
+// Main
 int main() {
     string fileName = "input.txt";
     ofstream fileOutput("result.txt");
 
     vector<Rule> grammar;
-    unordered_map<string, unordered_map<string, vector<string>>> parsingTable;
-
     readGrammar(fileName, grammar);
     cout << "\nOriginal Grammar:\n";
     fileOutput << "Original Grammar:\n";
-    printGrammar(grammar,cout);
-    printGrammar(grammar,fileOutput);
+    printGrammar(grammar, cout);
+    printGrammar(grammar, fileOutput);
 
     string originalStartSymbol = grammar[0].lhs;
-    // cout<<"-------------\nStart state is: "<<originalStartSymbol<<"\n---------------\n";
 
-    // Step 2: Left Factoring
     leftFactoring(grammar);
     cout << "\nGrammar after Left Factoring:\n";
     fileOutput << "\nGrammar after Left Factoring:\n";
-    printGrammar(grammar,cout);
-    printGrammar(grammar,fileOutput);
+    printGrammar(grammar, cout);
+    printGrammar(grammar, fileOutput);
 
-    // Step 3: Left Recursion Removal
     removeLeftRecursion(grammar);
     cout << "\nGrammar after Left Recursion Removal:\n";
     fileOutput << "\nGrammar after Left Recursion Removal:\n";
-    printGrammar(grammar,cout);
-    printGrammar(grammar,fileOutput);
+    printGrammar(grammar, cout);
+    printGrammar(grammar, fileOutput);
 
-    // Step 4: First Sets
     cout << "\nFirst sets of all terminals:\n";
     fileOutput << "\nFirst sets of all terminals:\n";
     computeFirstSets(grammar);
     printFirstSets(cout);
     printFirstSets(fileOutput);
 
-    // Step 5: FOLLOW Sets
     cout << "\nFollow sets of all terminals:\n";
     fileOutput << "\nFollow sets of all terminals:\n";
     computeFollowSets(grammar, originalStartSymbol);
     printFollowSets(cout);
     printFollowSets(fileOutput);
-    
-    // Step 6: LL(1) Parsing Table
+
     cout << "\nParsing table:\n";
     fileOutput << "\nParsing table:\n";
     parsingTable = constructLL1ParsingTable(grammar, firstSet, followSet);
@@ -614,6 +821,45 @@ int main() {
     printParsingTable(parsingTable, fileOutput);
 
     fileOutput.close();
+
+    unordered_set<string> nonTerms;
+    for (auto &r : grammar) nonTerms.insert(r.lhs);
+
+    ifstream in("input_strings.txt");
+    if (!in) {
+        cerr << "Cannot open input_strings.txt\n";
+        return 1;
+    }
+
+    ofstream fout("result.txt", ios::app);
+    string line;
+    vector<string> tokens;
+    bool inIfStatement = false;
+    while (getline(in, line)) {
+        if (trim(line).empty()) continue;
+        auto lineTokens = splitTokens(line);
+        if (lineTokens.empty()) continue;
+
+        if (!inIfStatement && lineTokens[0] == "if") {
+            inIfStatement = true;
+            tokens.insert(tokens.end(), lineTokens.begin(), lineTokens.end());
+        } else if (inIfStatement) {
+            tokens.insert(tokens.end(), lineTokens.begin(), lineTokens.end());
+            // Check if line contains '}', assuming single-token '}'
+            if (find(lineTokens.begin(), lineTokens.end(), "}") != lineTokens.end()) {
+                inIfStatement = false;
+                parseLine(tokens, nonTerms, grammar[0].lhs, cout, fout);
+                tokens.clear();
+            }
+        } else {
+            parseLine(lineTokens, nonTerms, grammar[0].lhs, cout, fout);
+        }
+    }
+
+    if (inIfStatement) {
+        cerr << "Error: Unclosed if-statement\n";
+        fout << "Error: Unclosed if-statement\n";
+    }
 
     return 0;
 }
